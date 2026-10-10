@@ -11,6 +11,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.*
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.akari.ppx.data.Prefs
+import com.akari.ppx.utils.showToast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -48,6 +52,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             BaseTheme {
                 val (checkingUpdate, checkUpdate) = rememberAssistantUpdateCheck()
+                val launchScope = rememberCoroutineScope()
+                var opening by androidx.compose.runtime.remember { mutableStateOf(false) }
                 val darkTheme = androidx.compose.foundation.isSystemInDarkTheme()
                 androidx.compose.runtime.SideEffect {
                     androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
@@ -71,7 +77,19 @@ class MainActivity : ComponentActivity() {
                                     Text("让每一次刷虾更顺手", style = MaterialTheme.typography.caption,
                                         color = MaterialTheme.colors.onSurface.copy(alpha = .6f))
                                 }
-                                TextButton(onClick = { startPPX(this@MainActivity) }) { Text("打开皮皮虾") }
+                                TextButton(enabled = !opening, onClick = {
+                                    opening = true
+                                    launchScope.launch {
+                                        try {
+                                            Prefs.flush()
+                                            startPPX(this@MainActivity)
+                                        } catch (error: Exception) {
+                                            this@MainActivity.showToast("设置同步失败，请重试")
+                                        } finally {
+                                            opening = false
+                                        }
+                                    }
+                                }) { Text("打开皮皮虾") }
                             }
                             Spacer(Modifier.height(16.dp))
                             OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(),
@@ -99,7 +117,7 @@ class MainActivity : ComponentActivity() {
                                         Column(Modifier.fillMaxWidth().padding(18.dp)) {
                                             Text(if (isActiveState.value) "框架已启用助手" else "等待框架启用", fontWeight = FontWeight.Bold)
                                             Text("助手 ${com.akari.ppx.BuildConfig.VERSION_NAME} · 皮皮虾 $targetVersion")
-                                            Text("已适配皮皮虾 $supportedVersionLabel；修改后重启生效。", style = MaterialTheme.typography.caption)
+                                            Text("已适配皮皮虾 $supportedVersionLabel；修改后需强行停止皮皮虾再打开；仅切换前后台不会重新加载设置。", style = MaterialTheme.typography.caption)
                                         }
                                     }
                                 }

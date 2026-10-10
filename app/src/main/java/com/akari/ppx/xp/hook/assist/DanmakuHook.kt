@@ -120,7 +120,14 @@ class DanmakuHook : BaseHook {
             null
         }
         runCatching {
-            "com.sup.android.module.usercenter.core.e".findClass(cl)
+            // 6.5.5 moved the author-data handler from core.e to usercenter.b.b (dex layout).
+            val handlerClass = listOf(
+                "com.sup.android.module.usercenter.core.e",
+                "com.sup.android.module.usercenter.b.e"
+            ).firstNotNullOfOrNull { name ->
+                runCatching { name.findClass(cl) }.getOrNull()
+            } ?: throw ClassNotFoundException("usercenter author data handler not found")
+            handlerClass
                 .new()
                 .callMethod("a", userId, callback)
         }.onFailure {

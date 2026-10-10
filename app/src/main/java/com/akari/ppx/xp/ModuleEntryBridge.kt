@@ -3,6 +3,7 @@ package com.akari.ppx.xp
 import android.content.Context
 import android.os.Bundle
 import com.akari.ppx.BuildConfig.APPLICATION_ID
+import com.akari.ppx.data.Const.SETTINGS_REVISION
 import com.akari.ppx.data.Const.TARGET_APP_ID
 import com.akari.ppx.data.XPrefs
 import com.akari.ppx.data.AutomationAvailability
@@ -32,6 +33,8 @@ object ModuleEntryBridge {
     @Volatile var installedCount = 0
         private set
     @Volatile var failedCount = 0
+        private set
+    @Volatile var loadedSettingsRevision: String? = null
         private set
 
     @JvmStatic
@@ -118,6 +121,7 @@ object ModuleEntryBridge {
             return
         }
         Log.i("Entry install hooks from $source size=${hooks.size}")
+        loadedSettingsRevision = XPrefs<String>(SETTINGS_REVISION)
         hooks.forEach { hook ->
             if (!AutomationAvailability.isHookAvailable(hook.javaClass.name)) {
                 Log.i("Entry skip unavailable automation ${hook.javaClass.name}")

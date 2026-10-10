@@ -10,7 +10,7 @@
 
 设置已按下载保存、广告过滤、评论发布、浏览播放、界面资料分类，支持全局搜索。
 自动操作尚未可靠适配，已隐藏整组设置并停用对应执行入口；历史自动开关不再触发操作。
-关于页列出适配版本（皮皮虾 6.2.0、6.5.0），提供 [酷安主页](https://www.coolapk.com/u/270261) 和赞赏入口。
+关于页列出适配版本（皮皮虾 6.2.0、6.5.0、6.5.5），提供 [酷安主页](https://www.coolapk.com/u/270261) 和赞赏入口。
 支付宝可跳转收款金额输入页；微信请保存收款码后打开扫一扫，从相册识别。赞赏金额由用户在支付应用中填写并确认。
 
 分享菜单新增“转发到发帖页”，可带入原文字、全部图片或视频，进入编辑页后由用户确认发布。
@@ -32,10 +32,14 @@
 
 ## 兼容范围
 
-- 宿主适配目标：`皮皮虾 6.2.0 / 6.5.0`
+- 宿主适配目标：`皮皮虾 6.2.0 / 6.5.0 / 6.5.5`
 - 框架兼容：
   - `LSPosed 1.9.x` -> legacy Xposed API 93
   - `LSPosed 2.0` -> modern libxposed API 101
+
+## 26.09.28
+
+发布 `0.0.7`：完成皮皮虾 `6.5.5 (655)` 适配 —— 真机 dex 逐项核对确认既有混淆引用与结构签名基本不变，唯一失效点为弹幕资料兜底查询类（`core.e` 重排为 `usercenter.b.e`），已加回退；并入福利入口隐藏、个人信息保护指引关闭、非官方包弹窗抑制三项新功能。应用内检查更新改读 [LSPosed 收录仓库的 Release](https://github.com/Xposed-Modules-Repo/io.github.vs2pk0.piyou/releases)（标签形如 `20261010-0.0.7`），关于页支持版本列表更新为 `6.5.5 / 6.5.0 / 6.2.0`。核对与运行时验证范围见 [6.5.5 适配记录](docs/functional-test-6.5.5.md)。
 
 ## 26.09.13-r6
 
@@ -94,7 +98,7 @@ Release APK 输出：
 
 ## 下载
 
-已构建版本通过 [GitHub Releases 下载页](https://github.com/vs2pk0/ppx-assistant/releases) 和 [LSPosed 收录仓库](https://github.com/Xposed-Modules-Repo/io.github.vs2pk0.piyou/releases) 分发。当前版本为 `0.0.3`，使用 `0.0.x` 命名，内部版本号保持递增。`0.0.1` 构建在应用更名时取消，未发布安装包。
+已构建版本通过 [GitHub Releases 下载页](https://github.com/vs2pk0/ppx-assistant/releases) 和 [LSPosed 收录仓库](https://github.com/Xposed-Modules-Repo/io.github.vs2pk0.piyou/releases) 分发，应用内检查更新以 LSPosed 收录仓库为准。当前版本为 `0.0.7`，使用 `0.0.x` 命名，内部版本号保持递增。`0.0.1` 构建在应用更名时取消，未发布安装包。
 
 发布时先更新 `app/build.gradle.kts` 中的版本名和版本号，再添加 `docs/releases/<版本>.md` 更新说明。推送对应的 `v<版本>` 标签后，Actions 自动运行测试、lint 和签名构建，并发布带中文更新说明的 Release、APK 和 SHA-256 校验文件；Actions 摘要也会显示更新内容。手动运行工作流时填写已存在的版本标签。
 

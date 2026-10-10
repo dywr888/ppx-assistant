@@ -7,8 +7,9 @@ import java.net.URL
 data class AssistantRelease(val version: String, val notes: String, val url: String)
 
 object AssistantUpdates {
-    private const val API = "https://api.github.com/repos/vs2pk0/ppx-assistant/releases/latest"
-    const val RELEASES = "https://github.com/vs2pk0/ppx-assistant/releases"
+    // LSPosed 官方模块仓库的 Release 是更新来源。
+    private const val API = "https://api.github.com/repos/Xposed-Modules-Repo/io.github.vs2pk0.piyou/releases/latest"
+    const val RELEASES = "https://github.com/Xposed-Modules-Repo/io.github.vs2pk0.piyou/releases"
 
     fun isNewer(candidate: String, current: String): Boolean {
         fun parts(value: String): List<java.math.BigInteger>? {
@@ -26,6 +27,16 @@ object AssistantUpdates {
         return false
     }
 
+    /** 仓库标签形如 `20261010-0.0.7`、`v0.0.7` 或 `0.0.7`；发布名优先于标签。 */
+    fun releaseVersion(tag: String, name: String?): String? {
+        fun plain(value: String): String? =
+            value.trim().removePrefix("v").takeIf { it.matches(Regex("[0-9]+([.][0-9]+)*")) }
+        plain(name.orEmpty())?.let { return it }
+        val normalized = tag.trim().removePrefix("v")
+        val candidate = if ('-' in normalized) normalized.substringAfterLast('-') else normalized
+        return plain(candidate)
+    }
+
     fun latest(): AssistantRelease? {
         val connection = URL(API).openConnection() as HttpURLConnection
         try {
@@ -38,8 +49,10 @@ object AssistantUpdates {
             val json = connection.inputStream.bufferedReader().use { JsonParser.parseReader(it).asJsonObject }
             if (json.get("draft")?.asBoolean == true || json.get("prerelease")?.asBoolean == true) return null
             val tag = json.get("tag_name").asString
+            val name = json.get("name")?.takeUnless { it.isJsonNull }?.asString
+            val version = releaseVersion(tag, name) ?: tag
             val body = json.get("body")?.takeUnless { it.isJsonNull }?.asString.orEmpty()
-            return AssistantRelease(tag, body.ifBlank { "此版本暂无更新说明。" },
+            return AssistantRelease(version, body.ifBlank { "此版本暂无更新说明。" },
                 "$RELEASES/tag/${java.net.URLEncoder.encode(tag, "UTF-8")}")
         } finally {
             connection.disconnect()

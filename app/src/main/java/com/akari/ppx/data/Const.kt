@@ -6,6 +6,7 @@ object Const {
     const val APP_NAME = "皮友助手"
     const val TARGET_APP_ID = "com.sup.android.superb"
     const val PREFS_NAME = "settings"
+    const val SETTINGS_REVISION = "settings_revision"
     const val CACHE_NAME = ".cache620v2"
     const val CP_URI = "content://${com.akari.ppx.BuildConfig.APPLICATION_ID}.CP/"
     const val TAB_SCHEMA = "akari://open_zs"

@@ -23,21 +23,6 @@ object ModuleSharedPrefs {
 
     private fun prefs(): SharedPreferences = sharedPreferences
 
-    fun mirror(key: String, value: Any?) {
-        prefs().edit().apply {
-            when (value) {
-                null -> remove(key)
-                is String -> putString(key, value)
-                is Boolean -> putBoolean(key, value)
-                is Int -> putInt(key, value)
-                is Long -> putLong(key, value)
-                is Float -> putFloat(key, value)
-                is Set<*> -> putStringSet(key, value.filterIsInstance<String>().toSet())
-                else -> putString(key, value.toString())
-            }
-        }.apply()
-    }
-
     fun syncAll(preferences: Preferences) {
         val editor = prefs().edit().clear()
         preferences.asMap().forEach { (key, value) ->
@@ -51,6 +36,6 @@ object ModuleSharedPrefs {
                 else -> editor.putString(key.name, value.toString())
             }
         }
-        editor.apply()
+        check(editor.commit()) { "Legacy settings mirror synchronization failed" }
     }
 }

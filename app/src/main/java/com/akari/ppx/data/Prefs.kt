@@ -14,6 +14,11 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import com.akari.ppx.App
 import com.akari.ppx.data.Const.PREFS_NAME
+import com.akari.ppx.data.Const.SETTINGS_REVISION
+import com.akari.ppx.utils.Log
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.util.UUID
 
 object Prefs {
     private val Context.dataStore by preferencesDataStore(PREFS_NAME)
@@ -29,33 +34,59 @@ object Prefs {
             dataStore.data.first()[getPrefsKey<T>(key)] ?: defaultValue
         }
 
+    private val syncMutex = Mutex()
+
     inline fun <reified T> set(key: String, value: T) {
-        scope.launch {
-            dataStore.edit { prefs -> prefs[getPrefsKey(key)] = value }
-            syncRemoteValue(key, value)
-            ModuleSharedPrefs.mirror(key, value)
-        }
+        // Start in invocation order, including rapid repeated changes to the same key.
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { save(getPrefsKey(key), value) }
     }
 
     inline fun <reified T> setBlocking(key: String, value: T) {
-        runBlocking(scope.coroutineContext) {
-            dataStore.edit { prefs -> prefs[getPrefsKey(key)] = value }
-            syncRemoteValue(key, value)
-            ModuleSharedPrefs.mirror(key, value)
+        runBlocking(scope.coroutineContext) { save(getPrefsKey(key), value) }
+    }
+
+    @PublishedApi
+    internal suspend fun <T> save(key: Preferences.Key<T>, value: T) {
+        syncMutex.withLock {
+            val snapshot = dataStore.edit { prefs ->
+                if (prefs[key] != value) {
+                    prefs[key] = value
+                    prefs[stringPreferencesKey(SETTINGS_REVISION)] = UUID.randomUUID().toString()
+                }
+            }
+            // Publish the value and revision together. A failed remote service must not
+            // prevent the legacy mirror from receiving the saved configuration.
+            runCatching { ModuleSharedPrefs.syncAll(snapshot) }.onFailure(Log::e)
+            publishRemote(FrameworkScopeState.remotePreferences(), snapshot)
+        }
+    }
+
+    suspend fun flush() = withContext(Dispatchers.IO) {
+        syncMutex.withLock {
+            val snapshot = dataStore.data.first()
+            ModuleSharedPrefs.syncAll(snapshot)
+            publishRemote(FrameworkScopeState.remotePreferences(), snapshot)
         }
     }
 
     fun syncMirror() {
         runBlocking(scope.coroutineContext) {
-            ModuleSharedPrefs.syncAll(dataStore.data.first())
+            syncMutex.withLock { ModuleSharedPrefs.syncAll(dataStore.data.first()) }
         }
     }
 
     fun syncRemote(sharedPreferences: SharedPreferences? = FrameworkScopeState.remotePreferences()) {
-        val remote = sharedPreferences ?: return
+        if (sharedPreferences == null) return
         runBlocking(scope.coroutineContext) {
+            syncMutex.withLock { publishRemote(sharedPreferences, dataStore.data.first()) }
+        }
+    }
+
+    private fun publishRemote(remote: SharedPreferences?, snapshot: Preferences) {
+        if (remote == null) return
+        runCatching {
             val editor = remote.edit().clear()
-            dataStore.data.first().asMap().forEach { (key, value) ->
+            snapshot.asMap().forEach { (key, value) ->
                 when (value) {
                     is String -> editor.putString(key.name, value)
                     is Boolean -> editor.putBoolean(key.name, value)
@@ -63,27 +94,10 @@ object Prefs {
                     is Long -> editor.putLong(key.name, value)
                     is Float -> editor.putFloat(key.name, value)
                     is Set<*> -> editor.putStringSet(key.name, value.filterIsInstance<String>().toSet())
-                    else -> editor.putString(key.name, value.toString())
                 }
             }
-            editor.apply()
-        }
-    }
-
-    @PublishedApi
-    internal fun syncRemoteValue(key: String, value: Any?) {
-        val editor = FrameworkScopeState.remotePreferences()?.edit() ?: return
-        when (value) {
-            null -> editor.remove(key)
-            is String -> editor.putString(key, value)
-            is Boolean -> editor.putBoolean(key, value)
-            is Int -> editor.putInt(key, value)
-            is Long -> editor.putLong(key, value)
-            is Float -> editor.putFloat(key, value)
-            is Set<*> -> editor.putStringSet(key, value.filterIsInstance<String>().toSet())
-            else -> editor.putString(key, value.toString())
-        }
-        editor.apply()
+            check(editor.commit()) { "Remote settings synchronization failed" }
+        }.onFailure(Log::e)
     }
 
     inline fun <reified T> getPrefsKey(key: String): Preferences.Key<T> =

@@ -48,8 +48,13 @@ val prefItems: List<List<PrefItem?>> = (0..3).map { index ->
                 ),
                 SwitchItem(
                     key = "remove_teenager_dialog",
-                    title = "关闭青少年模式弹窗",
-                    summary = "仍可从设置中进入青少年模式"
+                    title = "关闭未成年人弹窗",
+                    summary = "仍可从设置中进入未成年人模式"
+                ),
+                SwitchItem(
+                    key = "remove_privacy_dialog",
+                    title = "关闭个人信息保护指引",
+                    summary = "隐藏启动时的个人信息保护指引"
                 ),
                 SwitchItem(
                     key = "simplify_share",
@@ -458,6 +463,11 @@ val prefItems: List<List<PrefItem?>> = (0..3).map { index ->
                 SwitchItem(
                     key = "remove_bottom_view",
                     title = "去除底栏"
+                ),
+                SwitchItem(
+                    key = "remove_welfare_entry",
+                    title = "隐藏福利入口",
+                    summary = "隐藏底栏中的福利中心入口"
                 ),
                 SwitchItem(
                     key = "remove_publish_button",
