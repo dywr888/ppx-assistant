@@ -102,6 +102,8 @@ Release APK 输出：
 
 发布时先更新 `app/build.gradle.kts` 中的版本名和版本号，再添加 `docs/releases/<版本>.md` 更新说明。推送对应的 `v<版本>` 标签后，Actions 自动运行测试、lint 和签名构建，并发布带中文更新说明的 Release、APK 和 SHA-256 校验文件；Actions 摘要也会显示更新内容。手动运行工作流时填写已存在的版本标签。
 
+构建成功后，工作流会把同版 Release 镜像到 [LSPosed 收录仓库](https://github.com/Xposed-Modules-Repo/io.github.vs2pk0.piyou/releases)，标签格式为 `版本号-版本名`（如 `20261010-0.0.7`），应用内检查更新即读取该仓库。镜像需要在仓库 Secrets 配置 `MODULES_REPO_TOKEN`（对收录仓库有写权限的 Personal Access Token），未配置时自动跳过并给出提示；手动同步可用 `gh release create <版本号>-<版本名> -R Xposed-Modules-Repo/io.github.vs2pk0.piyou --title <版本名> --notes-file docs/releases/<版本>.md <APK> SHA256SUMS.txt`。
+
 CI 签名使用仓库 Secrets：`PPX_KEYSTORE_BASE64`、`PPX_STORE_PASSWORD`、`PPX_KEY_ALIAS`、`PPX_KEY_PASSWORD`，缺少密钥时停止发布。当前沿用既有安装包签名以支持覆盖升级，签名材料不入库。
 
 ## 许可

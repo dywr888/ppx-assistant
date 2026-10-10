@@ -41,13 +41,14 @@ jobs:
               raise SystemExit('标签必须使用 v0.0.1 格式')
           source = pathlib.Path('app/build.gradle.kts').read_text()
           version = re.search(r'^val verName = "([^"]+)"$', source, re.M).group(1)
+          code = re.search(r'^val verCode = ([0-9]+)$', source, re.M).group(1)
           if tag != f'v{version}':
               raise SystemExit('标签与 APK 版本不一致')
           notes = pathlib.Path(f'docs/releases/{version}.md')
           if not notes.is_file() or not notes.read_text().strip():
               raise SystemExit('缺少本版本更新说明')
           with open(os.environ['GITHUB_ENV'], 'a') as out:
-              out.write(f'RELEASE_VERSION={version}\nRELEASE_NOTES={notes}\n')
+              out.write(f'RELEASE_VERSION={version}\nRELEASE_NOTES={notes}\nMODULE_TAG={code}-{version}\n')
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
               out.write(notes.read_text() + '\n')
           print(notes.read_text())
@@ -101,6 +102,24 @@ jobs:
         run: |
           gh release create "$RELEASE_TAG" --verify-tag --title "皮友助手 ${RELEASE_VERSION}" --notes-file "$RELEASE_NOTES" app/build/outputs/release-dist/*
           printf '\n发布成功：[下载 %s](https://github.com/%s/releases/tag/%s)\n' "$RELEASE_TAG" "$GITHUB_REPOSITORY" "$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
+      - name: 同步发布到 LSPosed 收录仓库
+        env:
+          MODULES_REPO_TOKEN: ${{ secrets.MODULES_REPO_TOKEN }}
+        run: |
+          if [ -z "$MODULES_REPO_TOKEN" ]; then
+            echo '未配置 MODULES_REPO_TOKEN，跳过收录仓库同步（请手动发布或配置密钥后重跑）' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          repo="Xposed-Modules-Repo/io.github.vs2pk0.piyou"
+          if gh -R "$repo" release view "$MODULE_TAG" >/dev/null 2>&1; then
+            echo "收录仓库已存在 $MODULE_TAG，跳过" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          GH_TOKEN="$MODULES_REPO_TOKEN" gh release create "$MODULE_TAG" -R "$repo" \
+            --title "$RELEASE_VERSION" --notes-file "$RELEASE_NOTES" \
+            app/build/outputs/release-dist/*
+          printf '\n已同步到 LSPosed 收录仓库：[%s](https://github.com/%s/releases/tag/%s)\n' \
+            "$MODULE_TAG" "$repo" "$MODULE_TAG" >> "$GITHUB_STEP_SUMMARY"
       - name: 清理临时签名
         if: always()
         run: rm -f "$RUNNER_TEMP/ppx-release.keystore"
