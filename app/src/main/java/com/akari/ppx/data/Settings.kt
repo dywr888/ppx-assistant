@@ -474,6 +474,19 @@ val prefItems: List<List<PrefItem?>> = (0..3).map { index ->
                     title = "去除发布按钮"
                 ),
                 SwitchItem(
+                    key = "hide_home_game_entry",
+                    title = "隐藏游戏入口",
+                    summary = "隐藏首页右上角的小游戏入口"
+                ),
+                SwitchItem(
+                    key = "hide_bottom_topic_tab",
+                    title = "隐藏话题栏位"
+                ),
+                SwitchItem(
+                    key = "hide_bottom_message_tab",
+                    title = "隐藏消息栏位"
+                ),
+                SwitchItem(
                     key = "remove_detail_bottom_view",
                     title = "去除评论页底栏"
                 ),
