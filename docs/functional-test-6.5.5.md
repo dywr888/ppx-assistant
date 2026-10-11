@@ -27,6 +27,16 @@
 - `VersionChecker`：支持版本列表加入 6.5.5（关于页同步显示）。
 - README 适配版本说明同步；并入此前工作区中已有的 6.5.5 相关改动（`WelfareEntryHook` 隐藏福利入口、`PrivacyDialogHook` 关闭个人信息保护指引、`IntegrityDialogHook` 非官方包弹窗抑制、设置修订号提示）。
 
+## 26.10.11 追加：三个隐藏开关
+
+新增"隐藏游戏入口 / 隐藏话题栏位 / 隐藏消息栏位"（0.0.7 代码内）。实现要点：
+
+- 首页右上角小游戏图标仅由 `MiniGameHelper`（dex `feedui.util.aa`，6.5.0/6.5.5 同名）创建，构造后隐藏其 ViewStub 与图标。
+- 底栏由 `MainBottomBarController` 构建后又会被服务端配置按位置替换指示器，直接过滤初始标签列表会和替换逻辑冲突（实测出现"我的被换成话题"），因此改为在指示器唯一工厂 `bottom.b.a(Context,String,String,int)` 上按 tag/文案隐藏创建出的视图，兼容两条路径。
+- 注意点：Hook 参数里的 `FragmentActivity` 必须以字符串形式传给宿主 classloader 解析，模块自带的 androidx 类对象来自不同 classloader 会导致 NoSuchMethodException。
+
+真机验证（REDMI K90，皮皮虾 6.5.0）：三个开关全开后顶栏只剩搜索图标，底栏为 [首页, +, 我的]，"我的"页可正常打开；模块 0 失败（hooks=47）。开关关闭后恢复原状未单独复测（实现仅为视图 GONE，不改变宿主数据）。6.5.5 侧由同名结构核对支撑，未重复页面验证。
+
 ## 尚未在 6.5.5 完整重复验证的场景
 
 - 视频/音频/图片保存的实际下载、GIF 动图、楼中楼视频上传、红色评论端到端、评论颜色发布等深流程仅验证到 Hook 挂接与签名一致，未做逐项线上复测。
