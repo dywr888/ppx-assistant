@@ -4,6 +4,7 @@ import android.content.SharedPreferences
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XC_MethodReplacement
 import de.robv.android.xposed.XposedBridge
+import io.github.libxposed.api.XposedInterface
 import java.lang.reflect.Constructor
 import java.lang.reflect.Member
 import java.lang.reflect.Method
@@ -330,7 +331,9 @@ private class ModernHookBackend(
         .mapNotNullTo(linkedSetOf()) { hook(it, kind, callback) }
 
     private fun hookApi101(member: Member, kind: HookKind, callback: (HookParam) -> Any?): Any? {
-        val hookerClass = moduleApiClass("io.github.libxposed.api.XposedInterface\$Hooker")
+        // Class literals, not names: LSPosed's API call protection renames libxposed classes
+        // and only rewrites type references in the module dex, never string constants.
+        val hookerClass = XposedInterface.Hooker::class.java
         val proxy = Proxy.newProxyInstance(
             hookerClass.classLoader,
             arrayOf(hookerClass)
@@ -411,10 +414,7 @@ private class ModernHookBackend(
 
     private fun invokeOriginApi101(member: Member, thisObject: Any?, args: Array<Any?>): Any? {
         val invoker = module.callMethod("getInvoker", member) ?: return null
-        val originType = moduleApiClass("io.github.libxposed.api.XposedInterface\$Invoker\$Type")
-            .getField("ORIGIN")
-            .get(null)
-        invoker.callMethod("setType", originType)
+        invoker.callMethod("setType", XposedInterface.Invoker.Type.ORIGIN)
         return when (member) {
             is Method -> invoker.callMethodExact(
                 "invoke",
@@ -430,9 +430,6 @@ private class ModernHookBackend(
             else -> null
         }
     }
-
-    private fun moduleApiClass(name: String): Class<*> =
-        Class.forName(name, false, module.javaClass.classLoader)
 }
 
 private fun defaultProxyValue(type: Class<*>): Any? = when (type) {

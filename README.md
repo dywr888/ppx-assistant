@@ -37,6 +37,10 @@
   - `LSPosed 1.9.x` -> legacy Xposed API 93
   - `LSPosed 2.0` -> modern libxposed API 101
 
+## 26.10.17
+
+发布 `0.0.9`：修复 LSPosed 开启"Xposed API 调用保护"后模块不生效。该开关即 LSPosed 的 dex 混淆，会随机化 `de.robv.android.xposed` / `io.github.libxposed.api` 类名，只改写模块 dex 中的类型引用、不改写字符串常量；`HookRuntime` 原先用 `Class.forName("io.github.libxposed.api.XposedInterface$Hooker")` 查找接口而抛出 `ClassNotFoundException`，现改为类字面量引用。真机（LSPosed IT 2.1.0-it，API 102，开启保护）验证启动提示"加载成功; hooks=42"，模块 0 初始化失败。
+
 ## 26.10.11
 
 发布 `0.0.8`：新增"隐藏游戏入口"（首页右上角小游戏入口）与"隐藏话题栏位""隐藏消息栏位"三个开关。底栏隐藏在指示器工厂层按 tag/文案拦截，兼容宿主服务端按位置动态替换标签的行为；宿主类名与签名经 6.5.0/6.5.5 双版本 dex 核对一致。真机验证顶栏只剩搜索图标、底栏为 [首页, +, 我的]，"我的"页正常打开，模块 0 初始化失败。验证记录见 [6.5.5 适配记录追加节](docs/functional-test-6.5.5.md)。
@@ -102,7 +106,7 @@ Release APK 输出：
 
 ## 下载
 
-已构建版本通过 [GitHub Releases 下载页](https://github.com/vs2pk0/ppx-assistant/releases) 和 [LSPosed 收录仓库](https://github.com/Xposed-Modules-Repo/io.github.vs2pk0.piyou/releases) 分发，应用内检查更新以 LSPosed 收录仓库为准。当前版本为 `0.0.8`，使用 `0.0.x` 命名，内部版本号保持递增。`0.0.1` 构建在应用更名时取消，未发布安装包。
+已构建版本通过 [GitHub Releases 下载页](https://github.com/vs2pk0/ppx-assistant/releases) 和 [LSPosed 收录仓库](https://github.com/Xposed-Modules-Repo/io.github.vs2pk0.piyou/releases) 分发，应用内检查更新以 LSPosed 收录仓库为准。当前版本为 `0.0.9`，使用 `0.0.x` 命名，内部版本号保持递增。`0.0.1` 构建在应用更名时取消，未发布安装包。
 
 发布时先更新 `app/build.gradle.kts` 中的版本名和版本号，再添加 `docs/releases/<版本>.md` 更新说明。推送对应的 `v<版本>` 标签后，Actions 自动运行测试、lint 和签名构建，并发布带中文更新说明的 Release、APK 和 SHA-256 校验文件；Actions 摘要也会显示更新内容。手动运行工作流时填写已存在的版本标签。
 

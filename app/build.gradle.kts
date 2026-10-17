@@ -12,8 +12,8 @@ project.rootProject.file("local.properties").takeIf { it.exists() }?.inputStream
     properties.load(it)
 }
 
-val verCode = 20261011
-val verName = "0.0.8"
+val verCode = 20261017
+val verName = "0.0.9"
 
 android {
     compileSdk = 36
@@ -93,6 +93,7 @@ dependencies {
     implementation("com.squareup:gifencoder:0.10.1")
     implementation("io.noties.markwon:core:4.6.2")
     compileOnly(Libs.xposed_api)
+    compileOnly(Libs.libxposed_api)
     implementation(project(":xposed-modern-api101-entry"))
     implementation("io.github.libxposed:service:101.0.0") {
         exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib")
