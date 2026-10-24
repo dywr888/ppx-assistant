@@ -5,6 +5,7 @@ import android.app.AlertDialog
 import android.app.Dialog
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -327,7 +328,12 @@ class CustomEmoticonHook : BaseHook {
                 view.background = android.graphics.drawable.GradientDrawable().apply {
                     setColor(0x0D000000); cornerRadius = dp(12).toFloat()
                 }
-                view.callMethod("setImageURI", Uri.parse(emoji.uri))
+                runCatching {
+                    "com.bytedance.ies.xelement.video.base.utils.FrescoHelper".findClass(cl)
+                        .callStaticMethod("bindImage", view, emoji.uri, 0, 0, Bitmap.Config.RGB_565)
+                }.onFailure {
+                    view.callMethod("setImageURI", Uri.parse(emoji.uri))
+                }
                 view.setOnClickListener { insertEmoticon(context, emoji) }
                 view.setOnLongClickListener {
                     AlertDialog.Builder(context)
@@ -648,61 +654,71 @@ class CustomEmoticonHook : BaseHook {
     private val gridComments = java.util.WeakHashMap<View, Any>()
 
     private fun setupBatchCollect() {
-        val helperClass = "com.sup.android.m_comment.util.helper.c".findClass(cl)
-        val saveMethod = helperClass.declaredMethods.firstOrNull { m ->
-            m.parameterTypes.size == 3 && m.parameterTypes[0] == Activity::class.java
-        }?.name ?: run { Log.i("CustomEmoticon batch method missing"); return }
-        helperClass.hookBeforeMethod(
-            saveMethod,
-            Activity::class.java,
-            "com.sup.android.mi.feed.repo.bean.cell.AbsFeedCell",
-            Int::class.javaPrimitiveType
-        ) { param -> interceptBatch(param) }
-        // The detail page saves through its own helper with the same signature.
-        "com.sup.android.detail.util.h".findClass(cl).declaredMethods.firstOrNull { m ->
-            m.parameterTypes.size == 3 && m.parameterTypes[0] == Activity::class.java
-                    && m.parameterTypes[1].name.endsWith("AbsFeedCell")
-        }?.let { method ->
-            method.hookBeforeMethod { param -> interceptBatch(param) }
-        }
+        // Comment list and detail pages save through two different helpers.
+        runCatching {
+            val helperClass = "com.sup.android.m_comment.util.helper.c".findClass(cl)
+            val saveMethod = helperClass.declaredMethods.firstOrNull { m ->
+                m.parameterTypes.size == 3 && m.parameterTypes[0] == Activity::class.java
+            }?.name ?: error("CommentHelper save method missing")
+            helperClass.hookBeforeMethod(
+                saveMethod,
+                Activity::class.java,
+                "com.sup.android.mi.feed.repo.bean.cell.AbsFeedCell",
+                Int::class.javaPrimitiveType
+            ) { param -> interceptBatch(param) }
+        }.onFailure(Log::e)
+        runCatching {
+            "com.sup.android.detail.util.h".findClass(cl).declaredMethods.firstOrNull { m ->
+                m.parameterTypes.size == 3 && m.parameterTypes[0] == Activity::class.java
+                        && m.parameterTypes[1].name.endsWith("AbsFeedCell")
+            }?.let { method ->
+                method.hookBeforeMethod { param -> interceptBatch(param) }
+            }
+        }.onFailure(Log::e)
         // Long-pressing a comment image opens the batch dialog directly,
         // bypassing the host's report/add-to-emoticon bubble.
-        val gridClass = "com.sup.android.uikit.imagegrid.MultiImageGrid".findClass(cl)
-        val bindClass = "com.sup.android.m_comment.docker.holder.CommentImagePartHolder".findClass(cl)
-        bindClass.declaredMethods.firstOrNull { m ->
-            m.parameterTypes.size == 2 && m.parameterTypes[0].name.endsWith("comment.Comment")
-        }?.let { bind ->
-            bind.hookAfterMethod { param ->
-                val grid = runCatching {
-                    param.thisObject.javaClass.getMethod("getF39039b").invoke(param.thisObject) as? View
-                }.getOrNull() ?: return@hookAfterMethod
+        runCatching {
+            val gridClass = "com.sup.android.uikit.imagegrid.MultiImageGrid".findClass(cl)
+            val holderClass = "com.sup.android.m_comment.docker.holder.e".findClass(cl)
+            val bindMethod = holderClass.declaredMethods.firstOrNull { m ->
+                m.parameterTypes.size == 2 && m.parameterTypes[0].name.endsWith("comment.Comment")
+            } ?: error("grid bind method missing")
+            val gridField = holderClass.declaredFields.firstOrNull {
+                it.type.name.endsWith("MultiImageGrid")
+            }?.apply { isAccessible = true } ?: error("grid field missing")
+            Log.i("CustomEmoticon grid bind method=${bindMethod.name}")
+            bindMethod.hookAfterMethod { param ->
+                val grid = gridField.get(param.thisObject) as? View ?: return@hookAfterMethod
                 (param.args[0] as? Any)?.let { gridComments[grid] = it }
             }
-        }
-        gridClass.declaredMethods.firstOrNull { it.name == "setGridViewLongClick" }?.let { setLc ->
-            setLc.hookBeforeMethod { param ->
-                if (!XPrefs<Boolean>("batch_collect_emoticon")) return@hookBeforeMethod
-                val grid = param.thisObject as View
-                val host = param.args[0]
-                val iface = "com.sup.android.uikit.imagegrid.MultiImageGrid\$b".findClass(cl)
-                param.args[0] = java.lang.reflect.Proxy.newProxyInstance(cl, arrayOf(iface)) { _, method, args ->
-                    if (method.name == "onLongClick") {
-                        val context = (args?.getOrNull(1) as? View)?.context
-                        val comment = gridComments[grid]
-                        if (context is Activity && comment != null) {
-                            val images = runCatching {
-                                comment.callMethodAs<List<Any?>>("getImages")
-                            }.getOrNull().orEmpty()
-                            if (images.isNotEmpty()) {
-                                main.post { showBatchDialog(context, images) }
-                                return@newProxyInstance true
+            gridClass.declaredMethods.firstOrNull { it.name == "setGridViewLongClick" }?.let { setLc ->
+                Log.i("CustomEmoticon grid wrapper armed")
+                setLc.hookBeforeMethod { param ->
+                    if (!XPrefs<Boolean>("batch_collect_emoticon")) return@hookBeforeMethod
+                    val grid = param.thisObject as View
+                    val host = param.args[0]
+                    val iface = "com.sup.android.uikit.imagegrid.MultiImageGrid\$b".findClass(cl)
+                    param.args[0] = java.lang.reflect.Proxy.newProxyInstance(cl, arrayOf(iface)) { _, method, args ->
+                        if (method.name == "onLongClick") {
+                            val view = args?.getOrNull(1) as? View
+                            val context = view?.context
+                            val comment = gridComments[grid]
+                            Log.i("CustomEmoticon grid long-click context=${context?.javaClass?.name} isActivity=${context is Activity} comment=${comment != null}")
+                            if (context is Activity && comment != null) {
+                                val images = runCatching {
+                                    comment.callMethodAs<List<Any?>>("getImages")
+                                }.getOrNull().orEmpty()
+                                if (images.isNotEmpty()) {
+                                    main.post { showBatchDialog(context, images) }
+                                    return@newProxyInstance true
+                                }
                             }
                         }
+                        host?.callMethod(method.name, *(args ?: emptyArray<Any?>()))
                     }
-                    host?.callMethod(method.name, *(args ?: emptyArray<Any?>()))
                 }
             }
-        }
+        }.onFailure(Log::e)
     }
 
     private fun showBatchDialog(context: Activity, images: List<Any?>) {

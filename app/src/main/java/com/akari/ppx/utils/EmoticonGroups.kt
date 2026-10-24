@@ -1,11 +1,7 @@
 package com.akari.ppx.utils
 
-import android.net.Uri
-import android.os.Bundle
-import com.akari.ppx.data.Const.CP_URI
-import com.akari.ppx.data.PrefsType
 import com.akari.ppx.data.XPrefs
-import com.akari.ppx.xp.Init.ctx
+import com.akari.ppx.utils.HookRuntime
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
@@ -51,13 +47,11 @@ object EmoticonGroups {
         cache = groups.toMutableList()
         val json = gson.toJson(groups)
         Thread {
+            // The host cannot see the module provider (package visibility), so
+            // persist through LSPosed's remote preferences bridge instead.
             runCatching {
-                ctx.contentResolver.call(
-                    Uri.parse(CP_URI),
-                    PrefsType.SET_STRING.method,
-                    KEY,
-                    Bundle().apply { putString(PrefsType.SET_STRING.key, json) }
-                )
+                HookRuntime.remotePreferences()?.edit()?.putString(KEY, json)?.apply()
+                    ?: throw IllegalStateException("remote preferences unavailable")
             }.onFailure(Log::e)
         }.start()
     }
