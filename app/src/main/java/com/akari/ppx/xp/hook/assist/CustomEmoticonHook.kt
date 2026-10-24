@@ -708,8 +708,12 @@ class CustomEmoticonHook : BaseHook {
                                 val images = runCatching {
                                     comment.callMethodAs<List<Any?>>("getImages")
                                 }.getOrNull().orEmpty()
+                                Log.i("CustomEmoticon images=${images.size}")
                                 if (images.isNotEmpty()) {
-                                    main.post { showBatchDialog(context, images) }
+                                    main.post {
+                                        runCatching { showBatchDialog(context, images) }.onFailure(Log::e)
+                                        Log.i("CustomEmoticon batch dialog posted")
+                                    }
                                     return@newProxyInstance true
                                 }
                             }
