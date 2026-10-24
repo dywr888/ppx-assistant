@@ -35,6 +35,7 @@ import com.akari.ppx.utils.getStaticObjectField
 import com.akari.ppx.utils.getStaticObjectFieldAs
 import com.akari.ppx.utils.hookAfterMethod
 import com.akari.ppx.utils.hookBeforeMethod
+import com.akari.ppx.utils.HookParam
 import com.akari.ppx.utils.Log
 import com.akari.ppx.xp.Init.cl
 import com.akari.ppx.xp.hook.BaseHook
@@ -308,18 +309,23 @@ class CustomEmoticonHook : BaseHook {
 
         fun renderGrid(groupName: String?) {
             val grid = grid ?: return
-            val group = groupName ?: return
+            val group = groupName ?: run {
+                grid.removeAllViews()
+                grid.addView(TextView(context).apply {
+                    text = "还没有分组，点上方「＋ 添加分组」创建"
+                    setTextColor(0xFF999999.toInt()); gravity = Gravity.CENTER
+                    setPadding(0, dp(48), 0, dp(48))
+                }, GridLayout.LayoutParams().apply { width = GridLayout.LayoutParams.MATCH_PARENT })
+                return
+            }
             grid.removeAllViews()
             val emojis = EmoticonGroups.load().firstOrNull { it.name == group }?.emojis ?: return
             emojis.forEach { emoji ->
-                val cell = FrameLayout(context).apply {
-                    val pad = dp(4)
-                    setPadding(pad, pad, pad, pad)
-                }
+                val cell = FrameLayout(context).apply { setPadding(dp(5), dp(5), dp(5), dp(5)) }
                 val view = "com.facebook.drawee.view.SimpleDraweeView".findClass(cl).new(context) as View
-                view.layoutParams = FrameLayout.LayoutParams(dp(72), dp(72))
+                view.layoutParams = FrameLayout.LayoutParams(dp(80), dp(80))
                 view.background = android.graphics.drawable.GradientDrawable().apply {
-                    setColor(0x0F000000); cornerRadius = dp(10).toFloat()
+                    setColor(0x0D000000); cornerRadius = dp(12).toFloat()
                 }
                 view.callMethod("setImageURI", Uri.parse(emoji.uri))
                 view.setOnClickListener { insertEmoticon(context, emoji) }
@@ -329,7 +335,7 @@ class CustomEmoticonHook : BaseHook {
                         .setMessage("将该表情移出「$group」？")
                         .setPositiveButton("移除") { d, _ ->
                             EmoticonGroups.removeEmoji(group, emoji.uri)
-                            renderGrid(groupName); d.dismiss()
+                            renderGrid(group); d.dismiss()
                         }
                         .setNegativeButton("取消", null).show()
                     true
@@ -338,13 +344,18 @@ class CustomEmoticonHook : BaseHook {
                 grid.addView(cell)
             }
             if (emojis.isEmpty()) {
-                grid.addView(TextView(context).apply {
-                    text = "分组还是空的\n长按表情面板里的表情即可加入"
-                    setTextColor(0xFF999999.toInt()); gravity = Gravity.CENTER
-                    setPadding(0, dp(32), 0, dp(32))
-                }, GridLayout.LayoutParams().apply {
-                    width = GridLayout.LayoutParams.MATCH_PARENT
-                })
+                grid.addView(LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
+                    setPadding(0, dp(48), 0, dp(48))
+                    addView(TextView(context).apply {
+                        text = "皮"; textSize = 40f; gravity = Gravity.CENTER
+                        setTextColor(0x22000000.toInt())
+                    })
+                    addView(TextView(context).apply {
+                        text = "分组还是空的，长按表情面板里的表情加入"
+                        setTextColor(0xFF999999.toInt()); setPadding(0, dp(12), 0, 0)
+                    })
+                }, GridLayout.LayoutParams().apply { width = GridLayout.LayoutParams.MATCH_PARENT })
             }
         }
 
@@ -354,17 +365,17 @@ class CustomEmoticonHook : BaseHook {
             fun chip(label: String, filled: Boolean, onClick: () -> Unit, onLong: (() -> Unit)? = null) {
                 row.addView(TextView(context).apply {
                     text = label
-                    setPadding(dp(16), dp(8), dp(16), dp(8))
+                    setPadding(dp(18), dp(9), dp(18), dp(9))
                     gravity = Gravity.CENTER
                     if (filled) {
                         setTextColor(Color.WHITE)
                         background = android.graphics.drawable.GradientDrawable().apply {
-                            cornerRadius = dp(18).toFloat(); setColor(accent)
+                            cornerRadius = dp(20).toFloat(); setColor(accent)
                         }
                     } else {
                         setTextColor(0xFF444444.toInt())
                         background = android.graphics.drawable.GradientDrawable().apply {
-                            cornerRadius = dp(18).toFloat(); setColor(0x14000000)
+                            cornerRadius = dp(20).toFloat(); setColor(0x0F000000)
                         }
                     }
                     setOnClickListener { onClick() }
@@ -406,35 +417,44 @@ class CustomEmoticonHook : BaseHook {
         val root = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadii = floatArrayOf(dp(20).toFloat(), dp(20).toFloat(), dp(20).toFloat(), dp(20).toFloat(), 0f, 0f, 0f, 0f)
+                cornerRadii = floatArrayOf(dp(22).toFloat(), dp(22).toFloat(), dp(22).toFloat(), dp(22).toFloat(), 0f, 0f, 0f, 0f)
                 setColor(Color.WHITE)
             }
-            setPadding(dp(16), dp(16), dp(16), dp(12))
+            setPadding(dp(20), dp(10), dp(20), dp(24))
         }
-        root.addView(LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+        root.addView(View(context).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(40), dp(4)).apply { gravity = Gravity.CENTER_HORIZONTAL }
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(2).toFloat(); setColor(0x33000000)
+            }
+        })
+        val titleRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(14), 0, dp(4))
             addView(TextView(context).apply {
-                text = "自定义表情"; textSize = 17f
+                text = "自定义表情"; textSize = 18f
                 setTextColor(0xFF222222.toInt())
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
-            TextView(context).apply {
-                text = "导入"
-                setTextColor(accent); setPadding(dp(10), dp(6), dp(10), dp(6))
-                setOnClickListener { importDialog(context) { renderChips(selected); renderGrid(selected) } }
-            }.let(root::addView)
-            TextView(context).apply {
-                text = "导出"
-                setTextColor(accent); setPadding(dp(10), dp(6), dp(10), dp(6))
-                setOnClickListener {
-                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("皮友助手自定义表情", EmoticonGroups.export()))
-                    Toast.makeText(context, "分组 JSON 已复制到剪贴板", Toast.LENGTH_SHORT).show()
-                }
-            }.let(root::addView)
+        }
+        titleRow.addView(TextView(context).apply {
+            text = "导入"; textSize = 14f
+            setTextColor(accent); setPadding(dp(12), dp(6), dp(12), dp(6))
+            setOnClickListener { importDialog(context) { renderChips(selected); renderGrid(selected) } }
         })
-        chips = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, dp(6)) }
+        titleRow.addView(TextView(context).apply {
+            text = "导出"; textSize = 14f
+            setTextColor(accent); setPadding(dp(12), dp(6), dp(12), dp(6))
+            setOnClickListener {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("皮友助手自定义表情", EmoticonGroups.export()))
+                Toast.makeText(context, "分组 JSON 已复制到剪贴板", Toast.LENGTH_SHORT).show()
+            }
+        })
+        root.addView(titleRow)
+        chips = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, dp(4))
+        }
         root.addView(HorizontalScrollView(context).apply {
             addView(chips); scrollBarStyle = View.SCROLLBARS_OUTSIDE_OVERLAY
         })
@@ -442,14 +462,14 @@ class CustomEmoticonHook : BaseHook {
         root.addView(ScrollView(context).apply {
             addView(grid)
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(360)
-            ).apply { topMargin = dp(4) }
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(400)
+            ).apply { topMargin = dp(6) }
         })
 
         val dialog = Dialog(context)
         dialog.setContentView(root)
         dialog.window?.apply {
-            setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            setLayout(ViewGroup.LayoutParams.MATCH_PARENT, dp(620))
             setGravity(Gravity.BOTTOM)
             setBackgroundDrawableResource(android.R.color.transparent)
         }
@@ -462,6 +482,7 @@ class CustomEmoticonHook : BaseHook {
     private fun cardDialog(context: Context, title: String, content: View, positive: String, onPositive: () -> Unit) {
         val density = context.resources.displayMetrics.density
         fun dp(v: Int) = (v * density + 0.5f).toInt()
+        val dialog = Dialog(context)
         val root = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(18), dp(20), dp(14))
@@ -497,14 +518,14 @@ class CustomEmoticonHook : BaseHook {
                     setOnClickListener { block() }
                 })
             }
-            action("取消", false) { (root.parent as? android.widget.FrameLayout)?.let { frame ->
-                (frame.parent as? Dialog)?.dismiss()
-            } }
-            action(positive, true) { onPositive() }
+            action("取消", false) { dialog.dismiss() }
+            action(positive, true) {
+                dialog.dismiss()
+                onPositive()
+            }
         }, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ))
-        val dialog = Dialog(context)
         dialog.setContentView(FrameLayout(context).apply {
             setBackgroundColor(0x66000000)
             addView(root, FrameLayout.LayoutParams(
@@ -634,16 +655,25 @@ class CustomEmoticonHook : BaseHook {
             Activity::class.java,
             "com.sup.android.mi.feed.repo.bean.cell.AbsFeedCell",
             Int::class.javaPrimitiveType
-        ) { param ->
-            val context = param.args[0] as Activity
-            val cell = param.args[1] ?: return@hookBeforeMethod
-            val util = "com.sup.android.mi.feed.repo.utils.b\$a".findClass(cl)
-                .getStaticObjectField("a") ?: return@hookBeforeMethod
-            val images = runCatching { util.callMethodAs<List<Any?>>("ad", cell) }.getOrNull().orEmpty()
-            if (images.isEmpty()) return@hookBeforeMethod
-            param.result = null
-            showBatchDialog(context, cell, util, images)
+        ) { param -> interceptBatch(param) }
+        // The detail page saves through its own helper with the same signature.
+        "com.sup.android.detail.util.h".findClass(cl).declaredMethods.firstOrNull { m ->
+            m.parameterTypes.size == 3 && m.parameterTypes[0] == Activity::class.java
+                    && m.parameterTypes[1].name.endsWith("AbsFeedCell")
+        }?.let { method ->
+            method.hookBeforeMethod { param -> interceptBatch(param) }
         }
+    }
+
+    private fun interceptBatch(param: com.akari.ppx.utils.HookParam) {
+        val context = param.args[0] as Activity
+        val cell = param.args[1] ?: return
+        val util = "com.sup.android.mi.feed.repo.utils.b\$a".findClass(cl)
+            .getStaticObjectField("a") ?: return
+        val images = runCatching { util.callMethodAs<List<Any?>>("ad", cell) }.getOrNull().orEmpty()
+        if (images.isEmpty()) return
+        param.result = null
+        showBatchDialog(context, cell, util, images)
     }
 
     private fun showBatchDialog(context: Activity, cell: Any, util: Any, images: List<Any?>) {
