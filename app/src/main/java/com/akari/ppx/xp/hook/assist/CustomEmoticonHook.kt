@@ -645,6 +645,8 @@ class CustomEmoticonHook : BaseHook {
 
     // region comment batch collect
 
+    private val gridComments = java.util.WeakHashMap<View, Any>()
+
     private fun setupBatchCollect() {
         val helperClass = "com.sup.android.m_comment.util.helper.c".findClass(cl)
         val saveMethod = helperClass.declaredMethods.firstOrNull { m ->
@@ -663,25 +665,47 @@ class CustomEmoticonHook : BaseHook {
         }?.let { method ->
             method.hookBeforeMethod { param -> interceptBatch(param) }
         }
+        // Long-pressing a comment image opens the batch dialog directly,
+        // bypassing the host's report/add-to-emoticon bubble.
+        val gridClass = "com.sup.android.uikit.imagegrid.MultiImageGrid".findClass(cl)
+        val bindClass = "com.sup.android.m_comment.docker.holder.CommentImagePartHolder".findClass(cl)
+        bindClass.declaredMethods.firstOrNull { m ->
+            m.parameterTypes.size == 2 && m.parameterTypes[0].name.endsWith("comment.Comment")
+        }?.let { bind ->
+            bind.hookAfterMethod { param ->
+                val grid = runCatching {
+                    param.thisObject.javaClass.getMethod("getF39039b").invoke(param.thisObject) as? View
+                }.getOrNull() ?: return@hookAfterMethod
+                (param.args[0] as? Any)?.let { gridComments[grid] = it }
+            }
+        }
+        gridClass.declaredMethods.firstOrNull { it.name == "setGridViewLongClick" }?.let { setLc ->
+            setLc.hookBeforeMethod { param ->
+                if (!XPrefs<Boolean>("batch_collect_emoticon")) return@hookBeforeMethod
+                val grid = param.thisObject as View
+                val host = param.args[0]
+                val iface = "com.sup.android.uikit.imagegrid.MultiImageGrid\$b".findClass(cl)
+                param.args[0] = java.lang.reflect.Proxy.newProxyInstance(cl, arrayOf(iface)) { _, method, args ->
+                    if (method.name == "onLongClick") {
+                        val context = (args?.getOrNull(1) as? View)?.context
+                        val comment = gridComments[grid]
+                        if (context is Activity && comment != null) {
+                            val images = runCatching {
+                                comment.callMethodAs<List<Any?>>("getImages")
+                            }.getOrNull().orEmpty()
+                            if (images.isNotEmpty()) {
+                                main.post { showBatchDialog(context, images) }
+                                return@newProxyInstance true
+                            }
+                        }
+                    }
+                    host?.callMethod(method.name, *(args ?: emptyArray<Any?>()))
+                }
+            }
+        }
     }
 
-    private fun interceptBatch(param: com.akari.ppx.utils.HookParam) {
-        val context = param.args[0] as Activity
-        val cell = param.args[1] ?: return
-        val util = "com.sup.android.mi.feed.repo.utils.b\$a".findClass(cl)
-            .getStaticObjectField("a") ?: return
-        val images = runCatching { util.callMethodAs<List<Any?>>("ad", cell) }.getOrNull().orEmpty()
-        if (images.isEmpty()) return
-        param.result = null
-        showBatchDialog(context, cell, util, images)
-    }
-
-    private fun showBatchDialog(context: Activity, cell: Any, util: Any, images: List<Any?>) {
-        val itemId = runCatching { (util.callMethod("a", cell) as? Number)?.toLong() }.getOrDefault(0L)
-        val commentId = runCatching { (util.callMethod("o", cell) as? Number)?.toLong() }.getOrDefault(0L)
-        val replyId = runCatching {
-            cell.callMethodOrNull("getReply")?.callMethodOrNull("getReplyId") as? Long
-        }.getOrDefault(0L)
+    private fun showBatchDialog(context: Activity, images: List<Any?>) {
         AlertDialog.Builder(context)
             .setTitle("一键收藏表情（${images.size} 张）")
             .setMessage("将该评论里的全部表情添加到哪里？")
@@ -696,7 +720,7 @@ class CustomEmoticonHook : BaseHook {
                     }
                 }
                 images.filterNotNull().forEach { image ->
-                    runCatching { service.callMethod("collectEmoticon", image, itemId, commentId, replyId, callback) }
+                    runCatching { service.callMethod("collectEmoticon", image, 0L, 0L, 0L, callback) }
                         .onFailure { Log.e(it) }
                 }
                 d.dismiss()
@@ -720,6 +744,17 @@ class CustomEmoticonHook : BaseHook {
             }
             .setNeutralButton("取消", null)
             .show()
+    }
+
+    private fun interceptBatch(param: com.akari.ppx.utils.HookParam) {
+        val context = param.args[0] as Activity
+        val cell = param.args[1] ?: return
+        val util = "com.sup.android.mi.feed.repo.utils.b\$a".findClass(cl)
+            .getStaticObjectField("a") ?: return
+        val images = runCatching { util.callMethodAs<List<Any?>>("ad", cell) }.getOrNull().orEmpty()
+        if (images.isEmpty()) return
+        param.result = null
+        showBatchDialog(context, images)
     }
 
     // endregion

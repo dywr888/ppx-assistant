@@ -29,6 +29,7 @@ class InfoHook : BaseHook {
             m.parameterTypes.size == 2 && m.parameterTypes[0].name == "com.sup.android.mi.usercenter.model.UserInfo"
                     && m.parameterTypes[1] == Int::class.java
         }?.name
+        val myUserId = java.util.concurrent.atomic.AtomicLong()
         avatarViewClass.hookBeforeMethod(
             method,
             "com.sup.android.mi.usercenter.model.UserInfo",
@@ -38,10 +39,14 @@ class InfoHook : BaseHook {
             val certifyInfoClass =
                 "com.sup.android.mi.usercenter.model.UserInfo\$CertifyInfo".findClass(cl)
             isCustomize.check(true) {
-                "com.sup.android.module.usercenter.UserCenterService".findClass(cl)
-                    .callStaticMethod("getInstance")
-                    ?.callMethod("getMyUserInfo")?.getLongFieldOrNull("id")
-                    .takeIf { it != null && it > 0 }
+                if (myUserId.get() <= 0L) {
+                    "com.sup.android.module.usercenter.UserCenterService".findClass(cl)
+                        .callStaticMethod("getInstance")
+                        ?.callMethod("getMyUserInfo")?.getLongFieldOrNull("id")
+                        ?.takeIf { it > 0 }
+                        ?.let(myUserId::set)
+                }
+                myUserId.get().takeIf { it > 0 }
                     .check(userInfo.getLongField("id")) {
                         if (isEnterBlackHouse) {
                             userInfo.setObjectField("punishmentList", arrayListOf<Any>().apply {
