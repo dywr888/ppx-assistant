@@ -3,6 +3,7 @@
 package com.akari.ppx.xp.hook.misc
 
 import android.view.View
+import android.view.ViewGroup
 import com.akari.ppx.utils.findClass
 import com.akari.ppx.utils.hookAfterAllConstructors
 import com.akari.ppx.utils.hookAfterMethod
@@ -33,7 +34,9 @@ private fun hideBottomTabs(vararg tags: String) {
 }
 
 class TopicTabHook : SwitchHook("hide_bottom_topic_tab") {
-    override fun onHook() = hideBottomTabs("discovery", "话题")
+    // Slot two is "discovery" (话题) or "task" (福利中心) depending on the host's
+    // coin-system flag, so both tags hide the same position.
+    override fun onHook() = hideBottomTabs("discovery", "task", "话题", "福利")
 }
 
 class MessageTabHook : SwitchHook("hide_bottom_message_tab") {
@@ -50,6 +53,23 @@ class HomeGameEntryHook : SwitchHook("hide_home_game_entry") {
             val iconId = param.args[2] as? Int ?: return@hookAfterAllConstructors
             container.findViewById<View>(stubId)?.visibility = View.GONE
             container.findViewById<View>(iconId)?.visibility = View.GONE
+        }
+    }
+}
+
+/** The draggable coin floating ball above the vote row is MoneyIconController
+ * (dex `m_integral.view.d`) wrapping `MoneyExcitingUtil.addViewToParent`. */
+class CoinFloatBallHook : SwitchHook("hide_coin_float_ball") {
+    override fun onHook() {
+        "com.sup.android.m_integral.view.d".findClass(cl).hookAfterAllConstructors { param ->
+            (param.args[0] as? View)?.visibility = View.GONE
+        }
+        "com.sup.android.m_integral.money.MoneyExcitingUtil".findClass(cl).hookAfterMethod(
+            "addViewToParent",
+            View::class.java,
+            ViewGroup::class.java
+        ) { param ->
+            (param.args[0] as? View)?.visibility = View.GONE
         }
     }
 }

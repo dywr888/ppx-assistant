@@ -193,6 +193,16 @@ val prefItems: List<List<PrefItem?>> = (0..3).map { index ->
                     summary = "支持收藏更多的表情"
                 ),
                 SwitchItem(
+                    key = "enable_custom_emoticon",
+                    title = "自定义表情分组",
+                    summary = "表情面板底部新增入口，支持多分组与导入导出"
+                ),
+                SwitchItem(
+                    key = "batch_collect_emoticon",
+                    title = "长按一键收藏表情",
+                    summary = "长按评论表情可一键收藏到官方表情和自定义分组"
+                ),
+                SwitchItem(
                     key = "unlock_send_god_limit",
                     title = "解除神评已送满限制",
                     summary = "显示已送满评论的送神入口，结果以服务器为准"
@@ -479,6 +489,11 @@ val prefItems: List<List<PrefItem?>> = (0..3).map { index ->
                     summary = "隐藏首页右上角的小游戏入口"
                 ),
                 SwitchItem(
+                    key = "hide_coin_float_ball",
+                    title = "隐藏金币悬浮球",
+                    summary = "隐藏浏览时出现的金币任务悬浮球"
+                ),
+                SwitchItem(
                     key = "hide_bottom_topic_tab",
                     title = "隐藏话题栏位"
                 ),
@@ -655,7 +670,7 @@ val settingsCategories: List<SettingsCategory> by lazy {
         it !== ItemDivider && AutomationAvailability.isSettingAvailable(it.settingKey())
     }
     val downloads = setOf("save_image", "save_video", "save_audio", "copy_item", "remove_download_restrictions")
-    val comments = setOf("comment_text_color", "unlock_illegal_words", "unlock_video_comment_limit", "unlock_1080p_limit", "unlock_highlight", "unlock_emoji_limit", "unlock_send_god_limit", "enable_show_location_label")
+    val comments = setOf("comment_text_color", "unlock_illegal_words", "unlock_video_comment_limit", "unlock_1080p_limit", "unlock_highlight", "unlock_emoji_limit", "enable_custom_emoticon", "batch_collect_emoticon", "unlock_send_god_limit", "enable_show_location_label")
     val interfaceKeys = prefItems[3].filterNotNull().map { it.settingKey() }.toSet() + setOf("modify_channels", "default_channel", "enable_double_layout_style", "enable_old_god_icon_style", "use_feed_footer_new_style", "modify_interaction_style", "digg_style", "diss_style", "enable_digg_sound")
     val autoKeys = prefItems[2].filterNotNull().map { it.settingKey() }.toSet()
     val filterKeys = prefItems[0].filterNotNull().map { it.settingKey() }.toSet() - downloads - interfaceKeys
