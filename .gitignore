@@ -17,3 +17,7 @@ local.properties
 # local signing keystore
 *.jks
 *.keystore
+
+# local build artifacts
+/dist/
+/push.sh
