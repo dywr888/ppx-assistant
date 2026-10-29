@@ -7,7 +7,7 @@ object Const {
     const val TARGET_APP_ID = "com.sup.android.superb"
     const val PREFS_NAME = "settings"
     const val SETTINGS_REVISION = "settings_revision"
-    const val CACHE_NAME = ".cache620v2"
+    const val CACHE_NAME = ".cache660v1"
     const val CP_URI = "content://${com.akari.ppx.BuildConfig.APPLICATION_ID}.CP/"
     const val TAB_SCHEMA = "akari://open_zs"
     const val GIT_PAGE_URI = "https://github.com/vs2pk0/ppx-assistant"

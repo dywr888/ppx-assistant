@@ -10,7 +10,7 @@
 
 设置已按下载保存、广告过滤、评论发布、浏览播放、界面资料分类，支持全局搜索。
 自动操作尚未可靠适配，已隐藏整组设置并停用对应执行入口；历史自动开关不再触发操作。
-关于页列出适配版本（皮皮虾 6.2.0、6.5.0、6.5.5），提供 [酷安主页](https://www.coolapk.com/u/270261) 和赞赏入口。
+关于页列出适配版本（皮皮虾 6.2.0、6.5.0、6.5.5、6.6.0），提供 [酷安主页](https://www.coolapk.com/u/270261) 和赞赏入口。
 支付宝可跳转收款金额输入页；微信请保存收款码后打开扫一扫，从相册识别。赞赏金额由用户在支付应用中填写并确认。
 
 分享菜单新增“转发到发帖页”，可带入原文字、全部图片或视频，进入编辑页后由用户确认发布。
@@ -37,6 +37,8 @@
   - `LSPosed 1.9.x` -> legacy Xposed API 93
   - `LSPosed 2.0` -> modern libxposed API 101
 
+## 26.10.29
+发布 `0.10`：适配皮皮虾 6.6.0（versionCode 660）。以 dex 离线索引（105,999 个类）逐项核对：31 处字面量 hook 调用点、23 项 `Init.cache` 动态变量型映射、46 项反射探测函数全部命中，`Init.kt` 探测机制对 6.6.0 无需改动；`supportedVersions` 加入 `6.6.0`，`CACHE_NAME` 升级为 `.cache660v1` 以隔离旧版探测缓存。真机（LSPosed IT 2.1.0-it，API 102）对 6.6.0 原包冒烟：hooked 入口 114 条全量执行，无 FATAL、无 E/W 级日志，`.cache660v1` 正常生成。
 ## 26.10.17
 
 发布 `0.0.9`：修复 LSPosed 开启"Xposed API 调用保护"后模块不生效。该开关即 LSPosed 的 dex 混淆，会随机化 `de.robv.android.xposed` / `io.github.libxposed.api` 类名，只改写模块 dex 中的类型引用、不改写字符串常量；`HookRuntime` 原先用 `Class.forName("io.github.libxposed.api.XposedInterface$Hooker")` 查找接口而抛出 `ClassNotFoundException`，现改为类字面量引用。真机（LSPosed IT 2.1.0-it，API 102，开启保护）验证启动提示"加载成功; hooks=42"，模块 0 初始化失败。
@@ -106,7 +108,7 @@ Release APK 输出：
 
 ## 下载
 
-已构建版本通过 [GitHub Releases 下载页](https://github.com/vs2pk0/ppx-assistant/releases) 和 [LSPosed 收录仓库](https://github.com/Xposed-Modules-Repo/io.github.vs2pk0.piyou/releases) 分发，应用内检查更新以 LSPosed 收录仓库为准。当前版本为 `0.0.9`，使用 `0.0.x` 命名，内部版本号保持递增。`0.0.1` 构建在应用更名时取消，未发布安装包。
+已构建版本通过 [GitHub Releases 下载页](https://github.com/vs2pk0/ppx-assistant/releases) 和 [LSPosed 收录仓库](https://github.com/Xposed-Modules-Repo/io.github.vs2pk0.piyou/releases) 分发，应用内检查更新以 LSPosed 收录仓库为准。当前版本为 `0.10`，内部版本号保持递增。`0.0.1` 构建在应用更名时取消，未发布安装包。
 
 发布时先更新 `app/build.gradle.kts` 中的版本名和版本号，再添加 `docs/releases/<版本>.md` 更新说明。推送对应的 `v<版本>` 标签后，Actions 自动运行测试、lint 和签名构建，并发布带中文更新说明的 Release、APK 和 SHA-256 校验文件；Actions 摘要也会显示更新内容。手动运行工作流时填写已存在的版本标签。
 
