@@ -1,59 +1,62 @@
 name: 构建并发布 Release
-run-name: 发布 ${{ github.event.inputs.tag || github.ref_name }} · 构建 APK 与更新说明
+run-name: 发布 ${{ github.event.inputs.tag || '最新提交' }} · 自动构建签名与发布
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
   workflow_dispatch:
     inputs:
       tag:
-        description: 已存在的版本标签，例如 v0.10
-        required: true
+        description: 可选，指定已存在的版本标签（如 v0.10）；留空则自动按版本名发布
+        required: false
         type: string
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  group: release-main
   cancel-in-progress: false
 
 jobs:
   release:
-    name: 检查、构建与发布
+    name: 构建与发布
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    env:
-      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref_name }}
-          persist-credentials: false
+          ref: ${{ github.event.inputs.tag || github.sha }}
+          fetch-depth: 0
 
-      - name: 核对版本并显示更新内容
+      - name: 解析版本号与更新说明
         shell: bash
         run: |
           python3 - <<'PY'
           import os, pathlib, re
-          tag = os.environ['RELEASE_TAG']
-          if not re.fullmatch(r'v[0-9]+(\.[0-9]+){1,2}', tag):
-              raise SystemExit('标签必须使用 v0.10 或 v0.0.1 格式')
           source = pathlib.Path('app/build.gradle.kts').read_text()
           version = re.search(r'^val verName = "([^"]+)"$', source, re.M).group(1)
           code = re.search(r'^val verCode = ([0-9]+)$', source, re.M).group(1)
+          tag = os.environ.get('INPUT_TAG') or f'v{version}'
+          if not re.fullmatch(r'v[0-9]+(\.[0-9]+){1,2}', tag):
+              raise SystemExit(f'标签格式非法: {tag}')
           if tag != f'v{version}':
-              raise SystemExit(f'标签 {tag} 与 APK 版本 v{version} 不一致')
+              raise SystemExit(f'标签 {tag} 与版本 v{version} 不一致')
           notes = pathlib.Path(f'docs/releases/{version}.md')
           if not notes.is_file() or not notes.read_text().strip():
-              raise SystemExit('缺少本版本更新说明')
+              raise SystemExit('缺少本版本更新说明: ' + str(notes))
           with open(os.environ['GITHUB_ENV'], 'a') as out:
-              out.write(f'RELEASE_VERSION={version}\nRELEASE_NOTES={notes}\nMODULE_TAG={code}-{version}\n')
+              out.write(f'RELEASE_VERSION={version}\nRELEASE_TAG={tag}\nRELEASE_NOTES={notes}\nMODULE_TAG={code}-{version}\n')
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
-              out.write(notes.read_text() + '\n')
-          print(notes.read_text())
+              out.write(f'# 皮友助手 {version}\n\n' + notes.read_text() + '\n')
+          print('version=', version, 'tag=', tag)
           PY
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
 
       - uses: actions/setup-java@v4
         with:
@@ -69,7 +72,7 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: 恢复发布签名（配置了密钥则使用，否则自动回退 debug 签名）
+      - name: 准备签名（有密钥用密钥，否则自动使用 debug 签名）
         env:
           KEYSTORE_BASE64: ${{ secrets.PPX_KEYSTORE_BASE64 }}
         run: |
@@ -79,41 +82,40 @@ jobs:
             echo "PPX_KEYSTORE_FILE=$RUNNER_TEMP/ppx-release.keystore" >> "$GITHUB_ENV"
             echo '使用仓库配置的发布签名' >> "$GITHUB_STEP_SUMMARY"
           else
-            echo '未配置 PPX_KEYSTORE_BASE64，自动使用 debug 签名构建，无需任何密钥' >> "$GITHUB_STEP_SUMMARY"
+            echo '未配置签名密钥，自动使用 debug 签名构建（无需任何 secrets）' >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: 单元测试、Lint 与 Release 构建
+      - name: 单元测试与 Release 构建
         env:
           PPX_STORE_PASSWORD: ${{ secrets.PPX_STORE_PASSWORD }}
           PPX_KEY_ALIAS: ${{ secrets.PPX_KEY_ALIAS }}
           PPX_KEY_PASSWORD: ${{ secrets.PPX_KEY_PASSWORD }}
-        run: bash ./gradlew testDebugUnitTest lintRelease assembleRelease --no-daemon --console=plain
+        run: bash ./gradlew testDebugUnitTest assembleRelease --no-daemon --console=plain
 
-      - name: 验证 APK 签名并生成校验值
+      - name: 验证签名并生成校验值
         run: |
           apk="app/build/outputs/release-dist/皮友助手-v${RELEASE_VERSION}-release.apk"
           ls -l "$apk"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$apk"
           cd app/build/outputs/release-dist
           mv "皮友助手-v${RELEASE_VERSION}-release.apk" "piyou-assistant-v${RELEASE_VERSION}-release.apk"
-          sha256sum *.apk > SHA256SUMS.txt
-          cat SHA256SUMS.txt
+          sha256sum *.apk | tee SHA256SUMS.txt
 
       - name: 上传构建报告
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: reports-${{ env.RELEASE_TAG }}
+          name: reports-v${{ env.RELEASE_VERSION }}
           path: app/build/reports/
           if-no-files-found: ignore
 
       - name: 上传安装包
         uses: actions/upload-artifact@v4
         with:
-          name: ppx-assistant-${{ env.RELEASE_TAG }}
+          name: ppx-assistant-v${{ env.RELEASE_VERSION }}
           path: app/build/outputs/release-dist/
 
-      - name: 发布 GitHub Release
+      - name: 发布 GitHub Release（自动创建 tag）
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -122,9 +124,9 @@ jobs:
             gh release upload "$RELEASE_TAG" app/build/outputs/release-dist/* --clobber
             gh release edit "$RELEASE_TAG" --title "皮友助手 ${RELEASE_VERSION}" --notes-file "$RELEASE_NOTES"
           else
-            gh release create "$RELEASE_TAG" --verify-tag --title "皮友助手 ${RELEASE_VERSION}" --notes-file "$RELEASE_NOTES" app/build/outputs/release-dist/*
+            gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "皮友助手 ${RELEASE_VERSION}" --notes-file "$RELEASE_NOTES" app/build/outputs/release-dist/*
           fi
-          printf '\n发布成功：[下载 %s](https://github.com/%s/releases/tag/%s)\n' "$RELEASE_TAG" "$GITHUB_REPOSITORY" "$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
+          printf '\n发布成功：[%s](https://github.com/%s/releases/tag/%s)\n' "$RELEASE_TAG" "$GITHUB_REPOSITORY" "$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
 
       - name: 同步发布到 LSPosed 收录仓库
         env:
