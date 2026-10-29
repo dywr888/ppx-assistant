@@ -32,7 +32,7 @@
 
 ## 兼容范围
 
-- 宿主适配目标：`皮皮虾 6.2.0 / 6.5.0 / 6.5.5/6.6.0`
+- 宿主适配目标：`皮皮虾 6.2.0 / 6.5.0 / 6.5.5 / 6.6.0`
 - 框架兼容：
   - `LSPosed 1.9.x` -> legacy Xposed API 93
   - `LSPosed 2.0` -> modern libxposed API 101
@@ -108,13 +108,13 @@ Release APK 输出：
 
 ## 下载
 
-已构建版本通过 [GitHub Releases 下载页]，应用内检查更新以 LSPosed 收录仓库为准。当前版本为 `0.10`，内部版本号保持递增。`0.0.1` 构建在应用更名时取消，未发布安装包。
+已构建版本通过 [GitHub Releases 下载页](https://github.com/dywr888/ppx-assistant/releases)，应用内检查更新以 LSPosed 收录仓库为准。当前版本为 `0.10`，内部版本号保持递增。`0.0.1` 构建在应用更名时取消，未发布安装包。
 
-发布时先更新 `app/build.gradle.kts` 中的版本名和版本号，再添加 `docs/releases/<版本>.md` 更新说明。推送对应的 `v<版本>` 标签后，Actions 自动运行测试、lint 和签名构建，并发布带中文更新说明的 Release、APK 和 SHA-256 校验文件；Actions 摘要也会显示更新内容。手动运行工作流时填写已存在的版本标签。
+发布时先更新 `app/build.gradle.kts` 中的版本名和版本号，再添加 `docs/releases/<版本>.md` 更新说明。**推送到 `main` 分支即自动发布**：Actions 读取版本名自动打 `v<版本>` 标签，运行单元测试与 Release 构建，并创建带中文更新说明的 Release、APK 和 SHA-256 校验文件；Actions 摘要会显示更新内容。纯文档改动（`**.md`、`docs/**`）不会触发发布，避免文档提交产生重复构建。也可在 Actions 页面手动运行工作流，填写的标签留空时按当前版本名自动生成。
 
-构建成功后，工作流会把同版 Release 镜像到 标签格式为 `版本号-版本名`（如 `20261010-0.0.7`），应用内检查更新即读取该仓库。镜像需要在仓库 Secrets 配置 `MODULES_REPO_TOKEN`（对收录仓库有写权限的 Personal Access Token），未配置时自动跳过并给出提示；手动同步可用 `gh release create <版本号>-<版本名> -R Xposed-Modules-Repo/io.github.vs2pk0.piyou --title <版本名> --notes-file docs/releases/<版本>.md <APK> SHA256SUMS.txt`。
+构建成功后，工作流会把同版 Release 镜像到 [LSPosed 收录仓库](https://github.com/Xposed-Modules-Repo/io.github.vs2pk0.piyou/releases)，标签格式为 `版本号-版本名`（如 `20261010-0.0.7`），应用内检查更新即读取该仓库。镜像需要在仓库 Secrets 配置 `MODULES_REPO_TOKEN`（对收录仓库有写权限的 Personal Access Token），未配置时自动跳过并给出提示；手动同步可用 `gh release create <版本号>-<版本名> -R Xposed-Modules-Repo/io.github.vs2pk0.piyou --title <版本名> --notes-file docs/releases/<版本>.md <APK> SHA256SUMS.txt`。
 
-CI 签名使用仓库 Secrets：`PPX_KEYSTORE_BASE64`、`PPX_STORE_PASSWORD`、`PPX_KEY_ALIAS`、`PPX_KEY_PASSWORD`，缺少密钥时停止发布。当前沿用既有安装包签名以支持覆盖升级，签名材料不入库。
+CI 签名策略：若配置了仓库 Secrets `PPX_KEYSTORE_BASE64` / `PPX_STORE_PASSWORD` / `PPX_KEY_ALIAS` / `PPX_KEY_PASSWORD`，则用发布密钥签名；**未配置时自动回退到 debug 签名继续构建发布，无需任何 secrets**。使用发布密钥可保证与既有安装包签名一致、支持覆盖升级；debug 签名产物需先卸载旧版再安装。签名材料不入库。
 
 ## 许可
 
