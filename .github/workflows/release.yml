@@ -3,16 +3,16 @@ run-name: 发布 ${{ github.event.inputs.tag || github.ref_name }} · 构建 APK
 
 on:
   push:
-    tags: ['v[0-9]*']
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: 已存在的版本标签，例如 v0.10 或 v0.0.1
+        description: 已存在的版本标签，例如 v0.10
         required: true
         type: string
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: release-${{ github.event.inputs.tag || github.ref_name }}
@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   release:
-    name: 检查、签名与发布
+    name: 检查、构建与发布
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -31,20 +31,20 @@ jobs:
         with:
           ref: ${{ github.event.inputs.tag || github.ref_name }}
           persist-credentials: false
+
       - name: 核对版本并显示更新内容
         shell: bash
         run: |
           python3 - <<'PY'
           import os, pathlib, re
           tag = os.environ['RELEASE_TAG']
-          # 允许两段（v0.10）与三段（v0.0.1）版本号
           if not re.fullmatch(r'v[0-9]+(\.[0-9]+){1,2}', tag):
               raise SystemExit('标签必须使用 v0.10 或 v0.0.1 格式')
           source = pathlib.Path('app/build.gradle.kts').read_text()
           version = re.search(r'^val verName = "([^"]+)"$', source, re.M).group(1)
           code = re.search(r'^val verCode = ([0-9]+)$', source, re.M).group(1)
           if tag != f'v{version}':
-              raise SystemExit('标签与 APK 版本不一致')
+              raise SystemExit(f'标签 {tag} 与 APK 版本 v{version} 不一致')
           notes = pathlib.Path(f'docs/releases/{version}.md')
           if not notes.is_file() or not notes.read_text().strip():
               raise SystemExit('缺少本版本更新说明')
@@ -54,54 +54,51 @@ jobs:
               out.write(notes.read_text() + '\n')
           print(notes.read_text())
           PY
-      - name: 检查发布签名密钥
-        id: signing
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: 安装 Android SDK 36
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: 恢复发布签名（配置了密钥则使用，否则自动回退 debug 签名）
         env:
           KEYSTORE_BASE64: ${{ secrets.PPX_KEYSTORE_BASE64 }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
-            echo 'ready=true' >> "$GITHUB_OUTPUT"
+            umask 077
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/ppx-release.keystore"
+            echo "PPX_KEYSTORE_FILE=$RUNNER_TEMP/ppx-release.keystore" >> "$GITHUB_ENV"
+            echo '使用仓库配置的发布签名' >> "$GITHUB_STEP_SUMMARY"
           else
-            echo 'ready=false' >> "$GITHUB_OUTPUT"
-            echo '未配置 PPX_KEYSTORE_BASE64，已跳过签名构建与自动发布。请在本地签名构建后手动创建 Release。' >> "$GITHUB_STEP_SUMMARY"
+            echo '未配置 PPX_KEYSTORE_BASE64，自动使用 debug 签名构建，无需任何密钥' >> "$GITHUB_STEP_SUMMARY"
           fi
-      - uses: actions/setup-java@v4
-        if: steps.signing.outputs.ready == 'true'
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@v3
-        if: steps.signing.outputs.ready == 'true'
-        with:
-          packages: platform-tools
-      - name: 安装 Android SDK 36
-        if: steps.signing.outputs.ready == 'true'
-        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
-      - uses: gradle/actions/setup-gradle@v4
-        if: steps.signing.outputs.ready == 'true'
-      - name: 恢复发布签名
-        if: steps.signing.outputs.ready == 'true'
-        env:
-          KEYSTORE_BASE64: ${{ secrets.PPX_KEYSTORE_BASE64 }}
-        run: |
-          umask 077
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/ppx-release.keystore"
+
       - name: 单元测试、Lint 与 Release 构建
-        if: steps.signing.outputs.ready == 'true'
         env:
-          PPX_KEYSTORE_FILE: ${{ runner.temp }}/ppx-release.keystore
           PPX_STORE_PASSWORD: ${{ secrets.PPX_STORE_PASSWORD }}
           PPX_KEY_ALIAS: ${{ secrets.PPX_KEY_ALIAS }}
           PPX_KEY_PASSWORD: ${{ secrets.PPX_KEY_PASSWORD }}
         run: bash ./gradlew testDebugUnitTest lintRelease assembleRelease --no-daemon --console=plain
+
       - name: 验证 APK 签名并生成校验值
-        if: steps.signing.outputs.ready == 'true'
         run: |
           apk="app/build/outputs/release-dist/皮友助手-v${RELEASE_VERSION}-release.apk"
+          ls -l "$apk"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$apk"
           cd app/build/outputs/release-dist
           mv "皮友助手-v${RELEASE_VERSION}-release.apk" "piyou-assistant-v${RELEASE_VERSION}-release.apk"
           sha256sum *.apk > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: 上传构建报告
         if: always()
         uses: actions/upload-artifact@v4
@@ -109,26 +106,32 @@ jobs:
           name: reports-${{ env.RELEASE_TAG }}
           path: app/build/reports/
           if-no-files-found: ignore
+
       - name: 上传安装包
-        if: steps.signing.outputs.ready == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ppx-assistant-${{ env.RELEASE_TAG }}
           path: app/build/outputs/release-dist/
+
       - name: 发布 GitHub Release
-        if: steps.signing.outputs.ready == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$RELEASE_TAG" --verify-tag --title "皮友助手 ${RELEASE_VERSION}" --notes-file "$RELEASE_NOTES" app/build/outputs/release-dist/*
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG 已存在，覆盖更新资产" >> "$GITHUB_STEP_SUMMARY"
+            gh release upload "$RELEASE_TAG" app/build/outputs/release-dist/* --clobber
+            gh release edit "$RELEASE_TAG" --title "皮友助手 ${RELEASE_VERSION}" --notes-file "$RELEASE_NOTES"
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --title "皮友助手 ${RELEASE_VERSION}" --notes-file "$RELEASE_NOTES" app/build/outputs/release-dist/*
+          fi
           printf '\n发布成功：[下载 %s](https://github.com/%s/releases/tag/%s)\n' "$RELEASE_TAG" "$GITHUB_REPOSITORY" "$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
+
       - name: 同步发布到 LSPosed 收录仓库
-        if: steps.signing.outputs.ready == 'true'
         env:
           MODULES_REPO_TOKEN: ${{ secrets.MODULES_REPO_TOKEN }}
         run: |
           if [ -z "$MODULES_REPO_TOKEN" ]; then
-            echo '未配置 MODULES_REPO_TOKEN，跳过收录仓库同步（请手动发布或配置密钥后重跑）' >> "$GITHUB_STEP_SUMMARY"
+            echo '未配置 MODULES_REPO_TOKEN，跳过收录仓库同步' >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           repo="Xposed-Modules-Repo/io.github.vs2pk0.piyou"
@@ -141,6 +144,7 @@ jobs:
             app/build/outputs/release-dist/*
           printf '\n已同步到 LSPosed 收录仓库：[%s](https://github.com/%s/releases/tag/%s)\n' \
             "$MODULE_TAG" "$repo" "$MODULE_TAG" >> "$GITHUB_STEP_SUMMARY"
+
       - name: 清理临时签名
         if: always()
         run: rm -f "$RUNNER_TEMP/ppx-release.keystore"
