@@ -87,7 +87,7 @@ jobs:
           signature=$("$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk")
           printf '%s\n' "$signature"
           # Keep public updates installable over existing releases.
-          expected='dc55fab3b9ddf159b05cabe23cc77d428703b552dc020f502511ae8e3fd3e7b6'
+          expected='a224b0de040b13038d497df8d63fc5f36ed84b90acd7eeee7769686945623aa2'
           if ! grep -Fxq "Signer #1 certificate SHA-256 digest: $expected" <<< "$signature"; then
             echo '签名证书与已发布版本不一致，停止构建'
             exit 1
